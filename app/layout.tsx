@@ -13,8 +13,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Alphamax",
-  description: "Built with Next.js",
+  title: "Alphamax | Where Every Moment Becomes a Masterpiece",
+  description:
+    "A premium wedding venue where timeless elegance meets natural beauty. Discover Alphamax.",
 };
 
 export default function RootLayout({
@@ -24,7 +25,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className={`${geistSans.variable} ${geistMono.variable}`}>
-      <body>{children}</body>
+      <body className="antialiased">{children}</body>
     </html>
   );
 }
