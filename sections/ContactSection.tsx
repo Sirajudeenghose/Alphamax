@@ -45,6 +45,7 @@ export function ContactSection() {
   return (
     <section
       ref={sectionRef}
+      id="contact"
       className="relative flex min-h-screen items-center justify-center bg-gradient-to-b from-neutral-950 to-black px-6 py-32"
     >
       <div className="mx-auto max-w-3xl text-center">

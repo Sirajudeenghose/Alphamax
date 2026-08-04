@@ -4,9 +4,7 @@ import { useEffect, useRef } from "react";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { ScrollProgress } from "@/components/ui/ScrollProgress";
 import { HeroSection } from "@/sections/HeroSection";
-import { AboutSection } from "@/sections/AboutSection";
-import { ExperienceSection } from "@/sections/ExperienceSection";
-import { VenueSection } from "@/sections/VenueSection";
+import { CinematicTimeline } from "@/components/ui/cinmeaticTimeLine";
 import { ContactSection } from "@/sections/ContactSection";
 
 export default function Home() {
@@ -27,9 +25,7 @@ export default function Home() {
     <main className="bg-black">
       <ScrollProgress />
       <HeroSection />
-      <AboutSection />
-      <ExperienceSection />
-      <VenueSection />
+      <CinematicTimeline />
       <ContactSection />
     </main>
   );
