@@ -85,7 +85,12 @@ export function HeroSection() {
 
   return (
     <div ref={containerRef} className="relative">
-      <VideoHero videoSrc={VIDEO_PATH} overlayOpacity={0.55} wrapperRef={wrapperRef}>
+      <VideoHero
+        videoSrc={VIDEO_PATH}
+        poster="/images/wedding-venue-hero-poster.jpg"
+        overlayOpacity={0.55}
+        wrapperRef={wrapperRef}
+      >
         <div
           ref={contentRef}
           className="flex flex-col items-center text-center px-6 will-change-transform"

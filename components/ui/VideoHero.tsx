@@ -34,13 +34,12 @@ export function VideoHero({
       return;
     }
 
-    gsap.set(video, { opacity: 0, scale: 1.06 });
+    gsap.set(video, { scale: 1.06 });
     gsap.set(overlay, { opacity: 0 });
 
     const tl = gsap.timeline({ defaults: { ease: "power2.out" } });
-    tl.to(video, { opacity: 1, duration: 2, delay: 0.3 })
-      .to(overlay, { opacity: overlayOpacity, duration: 1.6 }, "<")
-      .to(video, { scale: 1, duration: 3.5 }, "<");
+    tl.to(overlay, { opacity: overlayOpacity, duration: 0.9, delay: 0.1 })
+      .to(video, { scale: 1, duration: 2.4 }, "<");
 
     return () => {
       tl.kill();

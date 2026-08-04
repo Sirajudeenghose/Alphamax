@@ -25,6 +25,15 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className={`${geistSans.variable} ${geistMono.variable}`}>
+      <head>
+        <link
+          rel="preload"
+          as="video"
+          href="/videos/wedding-venue-hero.mp4"
+          type="video/mp4"
+          fetchPriority="high"
+        />
+      </head>
       <body className="antialiased">{children}</body>
     </html>
   );
