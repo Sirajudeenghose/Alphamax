@@ -2,6 +2,7 @@
 
 import { useRef } from "react";
 import { useReducedMotion } from "@/hooks/useReducedMotion";
+import { useIsMobile } from "@/hooks/UseIsMobile";
 import { easing } from "@/lib/helpers/animations";
 import {
   useCinematicTimeline,
@@ -18,13 +19,35 @@ const ctaBase =
  * clip 2's `start` is where the handoff happens, so its own playback begins
  * at (virtualTime - start) internally.
  *
- * Adjust these to match your actual footage length (ffprobe / video
- * properties panel) — the numbers below follow the example timeline as
- * given: 0–12s from VIDEO 2.mp4, 12–22s from VIDEO 3.mp4.
+ * Both source clips are 10.01s (confirmed via ffmpeg's own probe output),
+ * so the shared timeline is 0–10s from clip 1 and 10–20s from clip 2. These
+ * MUST point at the all-intra re-encoded files ("- scrub.mp4"), not the
+ * originals — the originals still have a normal ~2s keyframe interval and
+ * will seek at a constant decode-limited pace instead of matching scroll.
+ *
+ * Mobile gets its own source files (different aspect crop, same duration/
+ * timing) rather than relying on `object-cover` to crop the desktop file —
+ * that keeps the subject framed correctly instead of just center-cropping
+ * a 16:9 clip into a tall viewport. Boundaries stay identical across both
+ * sets since only the framing changes, not the length.
  */
-const CLIPS: CinematicClip[] = [
-  { src: "/videos/VIDEO 2 - scrub.mp4", start: 0, end: 12 },
-  { src: "/videos/VIDEO 3 - scrub.mp4", start: 12, end: 22 },
+const CLIP_TIMING = [
+  { start: 0, end: 10 },
+  { start: 10, end: 20 },
+] as const;
+
+const DESKTOP_CLIPS: CinematicClip[] = [
+  { src: "/videos/VIDEO 2 - scrub.mp4", ...CLIP_TIMING[0] },
+  { src: "/videos/VIDEO 3 - scrub.mp4", ...CLIP_TIMING[1] },
+];
+
+// Rename these to match whatever your mobile export files are actually
+// called — they must also be re-encoded with the all-intra ffmpeg command
+// (keyint=1) exactly like the desktop ones, or seeking will be janky on
+// mobile too.
+const MOBILE_CLIPS: CinematicClip[] = [
+  { src: "/videos/VIDEO 2 MOBILE - scrub.mp4", ...CLIP_TIMING[0] },
+  { src: "/videos/VIDEO 3 MOBILE - scrub.mp4", ...CLIP_TIMING[1] },
 ];
 
 const SLIDES: (CinematicSlide & {
@@ -37,7 +60,7 @@ const SLIDES: (CinematicSlide & {
   {
     id: "section-2",
     start: 0,
-    end: 4,
+    end: 3,
     eyebrow: "Chapter One",
     title: "Arrival",
     description: "The estate reveals itself, one frame at a time.",
@@ -45,8 +68,8 @@ const SLIDES: (CinematicSlide & {
   },
   {
     id: "section-3",
-    start: 4,
-    end: 8,
+    start: 3,
+    end: 7,
     eyebrow: "Chapter Two",
     title: "The Grounds",
     description: "One hundred and twenty acres, shaped for celebration.",
@@ -54,8 +77,8 @@ const SLIDES: (CinematicSlide & {
   },
   {
     id: "section-4",
-    start: 8,
-    end: 12,
+    start: 7,
+    end: 10,
     eyebrow: "Chapter Three",
     title: "Golden Hour",
     description: "Where the light does half the work.",
@@ -64,8 +87,8 @@ const SLIDES: (CinematicSlide & {
   },
   {
     id: "section-5",
-    start: 12,
-    end: 17,
+    start: 10,
+    end: 15,
     eyebrow: "Chapter Four",
     title: "The Evening",
     description: "Chandelier-lit gardens, alive until dawn.",
@@ -73,8 +96,8 @@ const SLIDES: (CinematicSlide & {
   },
   {
     id: "section-6",
-    start: 17,
-    end: 22,
+    start: 15,
+    end: 20,
     eyebrow: "Chapter Five",
     title: "Begin Your Story",
     description: "Every love story deserves a beautiful beginning.",
@@ -83,7 +106,7 @@ const SLIDES: (CinematicSlide & {
   },
 ];
 
-const TOTAL_DURATION = CLIPS[CLIPS.length - 1].end;
+const TOTAL_DURATION = CLIP_TIMING[CLIP_TIMING.length - 1].end;
 
 /** How much scroll (in viewport-heights) each virtual second of the
  *  timeline consumes. Higher = slower, more deliberate scrub. */
@@ -95,11 +118,17 @@ export function CinematicTimeline() {
   const video2Ref = useRef<HTMLVideoElement>(null);
   const slideElsRef = useRef<(HTMLDivElement | null)[]>([]);
   const reduced = useReducedMotion();
+  const isMobile = useIsMobile();
+
+  // DESKTOP_CLIPS/MOBILE_CLIPS are stable module-level references, so this
+  // only changes identity when isMobile actually flips — not on every
+  // render — which keeps the effect below from rebinding needlessly.
+  const clips = isMobile ? MOBILE_CLIPS : DESKTOP_CLIPS;
 
   useCinematicTimeline({
     wrapperRef,
     videoRefs: [video1Ref, video2Ref],
-    clips: CLIPS,
+    clips,
     slides: SLIDES,
     slideElsRef,
     reduced,
@@ -166,7 +195,7 @@ export function CinematicTimeline() {
         <video
           ref={video1Ref}
           className="absolute inset-0 h-full w-full object-cover will-change-[opacity]"
-          src={CLIPS[0].src}
+          src={clips[0].src}
           muted
           playsInline
           preload="auto"
@@ -178,7 +207,7 @@ export function CinematicTimeline() {
         <video
           ref={video2Ref}
           className="absolute inset-0 h-full w-full object-cover will-change-[opacity]"
-          src={CLIPS[1].src}
+          src={clips[1].src}
           muted
           playsInline
           preload="auto"
