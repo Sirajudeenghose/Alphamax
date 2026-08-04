@@ -97,7 +97,7 @@ export function HeroSection() {
         >
           <p
             ref={subtitleRef}
-            className="mb-5 text-xs font-light tracking-[0.3em] uppercase text-white/70 sm:text-sm"
+            className="mb-5 max-w-xs text-xs font-light uppercase tracking-[0.2em] text-white/70 sm:max-w-none sm:tracking-[0.3em] sm:text-sm"
           >
             Where Every Moment Becomes a Masterpiece
           </p>
@@ -113,7 +113,7 @@ export function HeroSection() {
             className="mt-12 flex flex-col items-center gap-4 sm:flex-row sm:gap-6"
           >
             <a
-              href="#venue"
+              href="#services"
               className={`${ctaBase} bg-white text-neutral-950 hover:bg-white/80`}
             >
               Explore the Venue

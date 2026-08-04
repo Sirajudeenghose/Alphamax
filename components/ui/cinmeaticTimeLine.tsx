@@ -3,15 +3,15 @@
 import { useRef } from "react";
 import { useReducedMotion } from "@/hooks/useReducedMotion";
 import { useIsMobile } from "@/hooks/UseIsMobile";
-import { easing } from "@/lib/helpers/animations";
 import {
   useCinematicTimeline,
   type CinematicClip,
   type CinematicSlide,
 } from "@/hooks/useCinmeaticTimeLine";
-
-const ctaBase =
-  "inline-flex items-center justify-center px-10 py-4 text-xs font-medium uppercase tracking-[0.3em] transition-colors duration-300";
+import {
+  TimelineSlideContent,
+  type TimelineSlideType,
+} from "@/components/ui/timelineSlides";
 
 /**
  * Two source files stitched into one virtual timeline. `start`/`end` are in
@@ -50,60 +50,14 @@ const MOBILE_CLIPS: CinematicClip[] = [
   { src: "/videos/VIDEO 3 MOBILE - scrub.mp4", ...CLIP_TIMING[1] },
 ];
 
-const SLIDES: (CinematicSlide & {
-  eyebrow?: string;
-  title: string;
-  description?: string;
-  cta?: { label: string; href: string };
-  align?: "left" | "center" | "right";
-})[] = [
-  {
-    id: "section-2",
-    start: 0,
-    end: 3,
-    eyebrow: "Chapter One",
-    title: "Arrival",
-    description: "The estate reveals itself, one frame at a time.",
-    align: "center",
-  },
-  {
-    id: "section-3",
-    start: 3,
-    end: 7,
-    eyebrow: "Chapter Two",
-    title: "The Grounds",
-    description: "One hundred and twenty acres, shaped for celebration.",
-    align: "left",
-  },
-  {
-    id: "section-4",
-    start: 7,
-    end: 10,
-    eyebrow: "Chapter Three",
-    title: "Golden Hour",
-    description: "Where the light does half the work.",
-    cta: { label: "Explore the Venue", href: "#venue" },
-    align: "right",
-  },
-  {
-    id: "section-5",
-    start: 10,
-    end: 15,
-    eyebrow: "Chapter Four",
-    title: "The Evening",
-    description: "Chandelier-lit gardens, alive until dawn.",
-    align: "center",
-  },
-  {
-    id: "section-6",
-    start: 15,
-    end: 20,
-    eyebrow: "Chapter Five",
-    title: "Begin Your Story",
-    description: "Every love story deserves a beautiful beginning.",
-    cta: { label: "Book Your Date", href: "#contact" },
-    align: "center",
-  },
+type TimelineSlide = CinematicSlide & { type: TimelineSlideType };
+
+const SLIDES: TimelineSlide[] = [
+  { id: "services", start: 0, end: 4.5, type: "services" },
+  { id: "process", start: 4.5, end: 8.5, type: "process" },
+  { id: "testimonials", start: 8.5, end: 12.5, type: "testimonials" },
+  { id: "faq", start: 12.5, end: 16, type: "faq" },
+  { id: "cta", start: 16, end: 20, type: "cta" },
 ];
 
 const TOTAL_DURATION = CLIP_TIMING[CLIP_TIMING.length - 1].end;
@@ -138,13 +92,6 @@ export function CinematicTimeline() {
     seekThreshold: isMobile ? 0.08 : 0.02,
   });
 
-  const alignClass = (align: "left" | "center" | "right" = "center") =>
-    align === "left"
-      ? "items-start text-left"
-      : align === "right"
-        ? "items-end text-right"
-        : "items-center text-center";
-
   if (reduced) {
     // Accessible, non-scroll-jacked fallback: plain stacked sections, each
     // showing its clip paused on frame one, full-opacity copy, normal flow.
@@ -154,31 +101,11 @@ export function CinematicTimeline() {
           <section
             key={slide.id}
             id={slide.id}
-            className="relative flex min-h-screen w-full items-center justify-center overflow-hidden bg-neutral-950 px-6"
+            className="relative flex min-h-screen w-full items-center justify-center overflow-hidden bg-neutral-950 px-6 py-16"
           >
             <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/15 to-black/50" />
-            <div className={`relative z-10 flex max-w-2xl flex-col ${alignClass(slide.align)}`}>
-              {slide.eyebrow && (
-                <p className="mb-5 text-xs font-light uppercase tracking-[0.3em] text-white/70">
-                  {slide.eyebrow}
-                </p>
-              )}
-              <h2 className="text-4xl font-light tracking-tight text-white sm:text-6xl md:text-7xl">
-                {slide.title}
-              </h2>
-              {slide.description && (
-                <p className="mt-6 max-w-md text-sm font-light leading-relaxed text-white/70 sm:text-base">
-                  {slide.description}
-                </p>
-              )}
-              {slide.cta && (
-                <a
-                  href={slide.cta.href}
-                  className={`${ctaBase} mt-10 border border-white/40 text-white hover:border-white hover:bg-white/10`}
-                >
-                  {slide.cta.label}
-                </a>
-              )}
+            <div className="relative z-10 flex w-full justify-center">
+              <TimelineSlideContent type={slide.type} />
             </div>
           </section>
         ))}
@@ -195,7 +122,7 @@ export function CinematicTimeline() {
       {/* Pinned stage — GSAP pins this to the viewport for the whole
           wrapper height above, so the video never resizes/jumps between
           sections; only opacity + currentTime change underneath it. */}
-      <div className="sticky top-0 h-screen w-full overflow-hidden bg-neutral-950">
+      <div className="sticky top-0 h-screen w-full overflow-hidden bg-neutral-950 supports-[height:100dvh]:h-dvh">
         <video
           ref={video1Ref}
           className="absolute inset-0 h-full w-full object-cover will-change-[opacity]"
@@ -229,32 +156,11 @@ export function CinematicTimeline() {
             ref={(el) => {
               slideElsRef.current[i] = el;
             }}
-            className={`pointer-events-none absolute inset-0 z-10 flex flex-col justify-center px-6 will-change-transform ${alignClass(slide.align)}`}
+            className="pointer-events-none absolute inset-0 z-10 flex flex-col overflow-y-auto overscroll-contain px-4 py-8 will-change-transform sm:px-6 sm:py-10"
             style={{ opacity: i === 0 ? 1 : 0 }}
           >
-            <div className="mx-auto max-w-2xl">
-              {slide.eyebrow && (
-                <p className="mb-5 text-xs font-light uppercase tracking-[0.3em] text-white/70">
-                  {slide.eyebrow}
-                </p>
-              )}
-              <h2 className="text-4xl font-light tracking-tight text-white sm:text-6xl md:text-7xl">
-                {slide.title}
-              </h2>
-              {slide.description && (
-                <p className="mt-6 max-w-md text-sm font-light leading-relaxed text-white/70 sm:text-base">
-                  {slide.description}
-                </p>
-              )}
-              {slide.cta && (
-                <a
-                  href={slide.cta.href}
-                  className={`${ctaBase} mt-10 border border-white/40 text-white hover:border-white hover:bg-white/10`}
-                  style={{ pointerEvents: "auto" }}
-                >
-                  {slide.cta.label}
-                </a>
-              )}
+            <div className="m-auto w-full">
+              <TimelineSlideContent type={slide.type} />
             </div>
           </div>
         ))}
