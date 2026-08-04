@@ -14,6 +14,15 @@ export default function Home() {
     if (initialized.current) return;
     initialized.current = true;
 
+    // Touch devices run native momentum scroll on the compositor thread,
+    // which fights with the main-thread video-decode work happening in the
+    // scrub's onUpdate — that fight is what shows up as jank on phones but
+    // not on desktop. normalizeScroll replaces native scroll with a
+    // transform-driven one GSAP fully controls, removing that contention.
+    if (typeof window !== "undefined" && "ontouchstart" in window) {
+      ScrollTrigger.normalizeScroll(true);
+    }
+
     ScrollTrigger.refresh();
 
     const handleResize = () => ScrollTrigger.refresh();

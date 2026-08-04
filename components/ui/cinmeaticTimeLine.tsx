@@ -132,6 +132,10 @@ export function CinematicTimeline() {
     slides: SLIDES,
     slideElsRef,
     reduced,
+    // Mobile decoders can't keep up with the same seek frequency desktop
+    // handles fine — widening the dedup threshold cuts redundant seeks
+    // without a perceptible loss of scrub precision.
+    seekThreshold: isMobile ? 0.08 : 0.02,
   });
 
   const alignClass = (align: "left" | "center" | "right" = "center") =>

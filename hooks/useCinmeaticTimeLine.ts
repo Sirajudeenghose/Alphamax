@@ -31,6 +31,10 @@ interface UseCinematicTimelineOptions {
   crossfadeWindow?: number;
   /** How many virtual seconds a slide's copy takes to fade in/out on either side of [start, end]. */
   slideFadeMargin?: number;
+  /** Minimum currentTime delta before a seek is issued — raise this on
+   *  devices with slower decoders (mobile) to cut redundant seeks; the
+   *  visual difference below ~0.08s is imperceptible during scroll. */
+  seekThreshold?: number;
 }
 
 /**
@@ -55,6 +59,7 @@ export function useCinematicTimeline({
   reduced,
   crossfadeWindow = 0.4,
   slideFadeMargin = 1,
+  seekThreshold = 0.02,
 }: UseCinematicTimelineOptions) {
   useEffect(() => {
     const wrapper = wrapperRef.current;
@@ -139,7 +144,7 @@ export function useCinematicTimeline({
             );
             if (
               Number.isFinite(v.duration) &&
-              Math.abs(v.currentTime - localTime) > 0.02
+              Math.abs(v.currentTime - localTime) > seekThreshold
             ) {
               v.currentTime = localTime;
             }
@@ -190,5 +195,5 @@ export function useCinematicTimeline({
     };
     // slides/clips are expected to be stable module-level constants passed
     // in from the parent — if you make them dynamic, memoize them there.
-  }, [wrapperRef, videoRefs, clips, slides, slideElsRef, reduced, crossfadeWindow, slideFadeMargin]);
+  }, [wrapperRef, videoRefs, clips, slides, slideElsRef, reduced, crossfadeWindow, slideFadeMargin, seekThreshold]);
 }
