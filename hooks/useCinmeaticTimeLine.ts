@@ -43,13 +43,16 @@ async function toBlobUrl(src: string) {
   const cached = blobUrlCache.get(src);
   if (cached) return cached;
   try {
-    const res = await fetch(src, { cache: "force-cache" });
+    const res = await fetch(src, {
+      cache: "force-cache",
+      signal: AbortSignal.timeout(20_000),
+    });
     const blob = await res.blob();
     const url = URL.createObjectURL(blob);
     blobUrlCache.set(src, url);
     return url;
   } catch {
-    return src;
+    return undefined;
   }
 }
 
@@ -102,24 +105,17 @@ export function useCinematicTimeline({
     let cancelled = false;
     let trigger: ScrollTrigger | undefined;
 
-    // Swap every clip onto a fully-downloaded blob URL so seeks never
-    // trigger byte-range network requests mid-scrub (a fetch for each
-    // keyframe is what makes mobile scrub look like a slideshow on first
-    // visit), then unlock iOS/Safari — it refuses programmatic currentTime
-    // seeks on a <video> that has never actually played. Prime with a muted
-    // play → immediate pause before wiring up the scrub.
+    // iOS/Safari refuses programmatic currentTime seeks on a <video> that
+    // has never actually played. Unlock every clip with a muted play →
+    // immediate pause before wiring up the scrub, or scrubbing silently
+    // no-ops on iOS. Runs against the original JSX src so the first frame
+    // paints straight away.
     const primeAll = async () => {
-      for (const [i, v] of videos.entries()) {
-        if (!v || cancelled) continue;
+      for (const v of videos) {
+        if (!v) continue;
         v.muted = true;
         v.playsInline = true;
         try {
-          const blobUrl = clips[i]?.src && (await toBlobUrl(clips[i].src));
-          if (cancelled) return;
-          if (blobUrl && v.getAttribute("src") !== blobUrl) {
-            v.src = blobUrl;
-            v.load();
-          }
           await v.play();
           v.pause();
           v.currentTime = 0;
@@ -127,6 +123,25 @@ export function useCinematicTimeline({
           // Autoplay blocked — scrubbing still works fine once the
           // ScrollTrigger starts driving currentTime directly.
         }
+      }
+    };
+
+    // Background upgrade: swap every clip onto a fully-downloaded blob URL
+    // so seeks never trigger byte-range network requests mid-scrub (a fetch
+    // for each keyframe is what makes mobile scrub look like a slideshow on
+    // first visit). Runs AFTER bind and never blocks it — the video keeps
+    // scrubbing from its original src until the blob lands, then reloads
+    // from memory. Skipped entirely if the element has no metadata yet.
+    const upgradeToBlob = async () => {
+      for (const [i, v] of videos.entries()) {
+        const clip = clips[i];
+        if (!clip || !v || cancelled) continue;
+        const blobUrl = await toBlobUrl(clip.src);
+        if (cancelled || !blobUrl || v.getAttribute("src") === blobUrl) continue;
+        if (v.readyState < 1) continue;
+        const wantedTime = v.currentTime;
+        v.src = blobUrl; // setting src triggers the load algorithm itself
+        v.currentTime = wantedTime;
       }
     };
 
@@ -237,7 +252,9 @@ export function useCinematicTimeline({
     };
 
     primeAll().then(() => {
-      if (!cancelled) bind();
+      if (cancelled) return;
+      bind();
+      void upgradeToBlob();
     });
 
     return () => {
