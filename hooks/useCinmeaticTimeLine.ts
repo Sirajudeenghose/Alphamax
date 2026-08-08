@@ -37,6 +37,22 @@ interface UseCinematicTimelineOptions {
   seekThreshold?: number;
 }
 
+const blobUrlCache = new Map<string, string>();
+
+async function toBlobUrl(src: string) {
+  const cached = blobUrlCache.get(src);
+  if (cached) return cached;
+  try {
+    const res = await fetch(src, { cache: "force-cache" });
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    blobUrlCache.set(src, url);
+    return url;
+  } catch {
+    return src;
+  }
+}
+
 /**
  * Drives a single continuous scroll-scrubbed "cinematic" timeline that spans
  * multiple <video> clips and multiple full-viewport text slides, all pinned
@@ -86,16 +102,24 @@ export function useCinematicTimeline({
     let cancelled = false;
     let trigger: ScrollTrigger | undefined;
 
-    // iOS/Safari refuses programmatic currentTime seeks on a <video> that
-    // has never actually played. Unlock every clip with a muted play →
-    // immediate pause before wiring up the scrub, or scrubbing silently
-    // no-ops on iOS.
+    // Swap every clip onto a fully-downloaded blob URL so seeks never
+    // trigger byte-range network requests mid-scrub (a fetch for each
+    // keyframe is what makes mobile scrub look like a slideshow on first
+    // visit), then unlock iOS/Safari — it refuses programmatic currentTime
+    // seeks on a <video> that has never actually played. Prime with a muted
+    // play → immediate pause before wiring up the scrub.
     const primeAll = async () => {
-      for (const v of videos) {
-        if (!v) continue;
+      for (const [i, v] of videos.entries()) {
+        if (!v || cancelled) continue;
         v.muted = true;
         v.playsInline = true;
         try {
+          const blobUrl = clips[i]?.src && (await toBlobUrl(clips[i].src));
+          if (cancelled) return;
+          if (blobUrl && v.getAttribute("src") !== blobUrl) {
+            v.src = blobUrl;
+            v.load();
+          }
           await v.play();
           v.pause();
           v.currentTime = 0;
@@ -103,6 +127,36 @@ export function useCinematicTimeline({
           // Autoplay blocked — scrubbing still works fine once the
           // ScrollTrigger starts driving currentTime directly.
         }
+      }
+    };
+
+    // Batch seeks to at most one per compositor frame. An onUpdate that
+    // writes v.currentTime directly can issue many seeks per frame during a
+    // fast flick; each one forces a hardware-decoder flush/reset, so the
+    // winner on mobile is to remember the newest target and apply it once
+    // per rAF instead.
+    let rafId = 0;
+    const pendingSeek = new Array<number>(videos.length).fill(Number.NaN);
+
+    const flushSeeks = () => {
+      rafId = 0;
+      pendingSeek.forEach((target, i) => {
+        const v = videos[i];
+        if (!v || !Number.isFinite(target)) return;
+        if (
+          Number.isFinite(v.duration) &&
+          Math.abs(v.currentTime - target) > seekThreshold
+        ) {
+          v.currentTime = target;
+        }
+      });
+      pendingSeek.fill(Number.NaN);
+    };
+
+    const requestSeek = (i: number, time: number) => {
+      pendingSeek[i] = time;
+      if (!rafId) {
+        rafId = requestAnimationFrame(flushSeeks);
       }
     };
 
@@ -146,7 +200,7 @@ export function useCinematicTimeline({
               Number.isFinite(v.duration) &&
               Math.abs(v.currentTime - localTime) > seekThreshold
             ) {
-              v.currentTime = localTime;
+              requestSeek(i, localTime);
             }
           });
 
@@ -188,6 +242,7 @@ export function useCinematicTimeline({
 
     return () => {
       cancelled = true;
+      if (rafId) cancelAnimationFrame(rafId);
       trigger?.kill();
       ScrollTrigger.getAll().forEach((s) => {
         if (s.trigger === wrapper) s.kill();

@@ -156,7 +156,7 @@ export function CinematicTimeline() {
             ref={(el) => {
               slideElsRef.current[i] = el;
             }}
-            className="pointer-events-none absolute inset-0 z-10 flex flex-col overflow-y-auto overscroll-contain px-4 py-8 will-change-transform sm:px-6 sm:py-10"
+            className="pointer-events-none absolute inset-0 z-10 flex flex-col overflow-y-auto px-4 py-8 will-change-transform sm:px-6 sm:py-10"
             style={{ opacity: i === 0 ? 1 : 0 }}
           >
             <div className="m-auto w-full">
