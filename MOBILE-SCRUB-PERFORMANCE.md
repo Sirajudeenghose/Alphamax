@@ -52,6 +52,34 @@ Changed **one file**: `hooks/useCinmeaticTimeLine.ts`.
 
 Result: a fast flick collapses to exactly one decoder seek per compositor frame instead of a queued storm.
 
+## Regression we hit (and how we fixed it) — "video gone"
+
+The first attempt wired the blob download *into* `primeAll`:
+
+```ts
+// BAD: the scrub did not start until both ~10 MB clips finished downloading
+const blobUrl = clips[i]?.src && (await toBlobUrl(clips[i].src));
+if (blobUrl && v.getAttribute("src") !== blobUrl) {
+  v.src = blobUrl;
+  v.load();   // BAD: force-reload racing the play() primer
+}
+await v.play();
+```
+
+Result on the phone: the whole timeline video went black/missing. Three compounding mistakes:
+
+1. **Startup blocked on the network.** `primeAll` awaited a full 10 MB `fetch` per clip *before* `bind()` was ever called. On a slow phone connection the video sat black and unscrubbable for the entire download (20+ MB total). On the laptop it was fast enough to go unnoticed — classic "works on my machine".
+2. **`v.load()` right after swapping `src`** reset the element mid-setup and, combined with the play primer, could leave it paused before its first frame ever decoded.
+3. **No ordering guarantee** — the blob upgrade and the iOS unlock raced each other.
+
+**The corrected design (current code):**
+
+1. `primeAll` was reverted to the original behavior — play → pause unlock on the **original JSX `src`**, so the first frame paints immediately.
+2. `bind()` runs right after — the ScrollTrigger is live before any blob work happens. Scrub works exactly like the pre-fix code from the first scroll.
+3. `upgradeToBlob()` runs **after** `bind()` as a detached background task: it only touches an element that already has metadata (`readyState >= 1`), swaps to the blob URL, and restores `currentTime`. Slow or failed fetches are a silent no-op (20s `AbortSignal` timeout), leaving the original URL in place.
+
+Lesson baked in: **never gate the scroll-scrub startup on a network download** — network work must always be an additive background upgrade, never a prerequisite.
+
 ## How to verify on a real phone
 
 1. Serve the site (`npm run dev`) and open it in the phone browser (or desktop Chrome DevTools → device emulation → throttled "Slow 3G").

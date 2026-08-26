@@ -12,19 +12,20 @@ export function ScrollProgress() {
   useEffect(() => {
     if (reduced || !barRef.current) return;
 
-    gsap.to(barRef.current, {
-      scaleX: 1,
-      ease: "none",
-      scrollTrigger: {
-        trigger: document.body,
-        start: "top top",
-        end: "bottom bottom",
-        scrub: 1,
+    const trigger = ScrollTrigger.create({
+      trigger: document.body,
+      start: "top top",
+      end: "bottom bottom",
+      scrub: 1,
+      onUpdate: (self) => {
+        if (barRef.current) {
+          gsap.set(barRef.current, { scaleX: self.progress });
+        }
       },
     });
 
     return () => {
-      ScrollTrigger.getAll().forEach((st) => st.kill());
+      trigger.kill();
     };
   }, [reduced]);
 

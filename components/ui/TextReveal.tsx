@@ -4,6 +4,7 @@ import { useRef, useEffect } from "react";
 import { gsap } from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { useReducedMotion } from "@/hooks/useReducedMotion";
+import { useIsMobile } from "@/hooks/UseIsMobile";
 import { easing } from "@/lib/helpers/animations";
 
 interface TextRevealProps {
@@ -16,10 +17,11 @@ interface TextRevealProps {
 export function TextReveal({ text, as: Tag = "p", className, stagger = 0.04 }: TextRevealProps) {
   const containerRef = useRef<HTMLElement>(null);
   const reduced = useReducedMotion();
+  const isMobile = useIsMobile();
 
   useEffect(() => {
     const el = containerRef.current;
-    if (reduced || !el) return;
+    if (reduced || isMobile || !el) return;
 
     const words = el.querySelectorAll<HTMLSpanElement>(".word");
 
@@ -43,13 +45,13 @@ export function TextReveal({ text, as: Tag = "p", className, stagger = 0.04 }: T
     return () => {
       ScrollTrigger.getAll().forEach((st) => st.vars.trigger === el && st.kill());
     };
-  }, [reduced, stagger]);
+  }, [reduced, isMobile, stagger]);
 
   const words = text.split(" ");
 
   return (
     <Tag ref={containerRef as never} className={className} aria-label={text}>
-      {reduced ? (
+      {reduced || isMobile ? (
         text
       ) : (
         <>

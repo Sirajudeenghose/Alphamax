@@ -105,7 +105,7 @@ export function CinematicTimeline() {
           >
             <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/15 to-black/50" />
             <div className="relative z-10 flex w-full justify-center">
-              <TimelineSlideContent type={slide.type} />
+              <TimelineSlideContent type={slide.type} isMobile={isMobile} />
             </div>
           </section>
         ))}
@@ -160,7 +160,7 @@ export function CinematicTimeline() {
             style={{ opacity: i === 0 ? 1 : 0 }}
           >
             <div className="m-auto w-full">
-              <TimelineSlideContent type={slide.type} />
+              <TimelineSlideContent type={slide.type} isMobile={isMobile} />
             </div>
           </div>
         ))}

@@ -156,6 +156,9 @@ const eyebrowClass =
   "mb-3 text-[11px] font-light uppercase tracking-[0.3em] text-white/70 sm:mb-4 sm:text-xs";
 
 const cardClass =
+  "border border-white/10 bg-neutral-950/50";
+
+const cardDesktopClass =
   "border border-white/10 bg-neutral-950/50 backdrop-blur-sm";
 
 function Headline({ eyebrow, title }: { eyebrow: string; title: string }) {
@@ -169,7 +172,8 @@ function Headline({ eyebrow, title }: { eyebrow: string; title: string }) {
   );
 }
 
-export function ServicesSlide() {
+export function ServicesSlide({ isMobile }: { isMobile?: boolean }) {
+  const card = isMobile ? cardClass : cardDesktopClass;
   return (
     <div className="mx-auto max-w-5xl">
       <Headline eyebrow="What We Offer" title="One Estate, Every Detail" />
@@ -189,7 +193,7 @@ export function ServicesSlide() {
         {SERVICES.map((service) => {
           const Icon = service.icon;
           return (
-            <div key={service.title} className={`flex gap-4 p-4 sm:p-6 ${cardClass}`}>
+            <div key={service.title} className={`flex gap-4 p-4 sm:p-6 ${card}`}>
               <div className="flex h-10 w-10 shrink-0 items-center justify-center border border-white/10 text-amber-400/90 sm:h-11 sm:w-11">
                 <Icon className="h-5 w-5" aria-hidden="true" />
               </div>
@@ -249,7 +253,8 @@ export function ProcessSlide() {
   );
 }
 
-export function TestimonialsSlide() {
+export function TestimonialsSlide({ isMobile }: { isMobile?: boolean }) {
+  const card = isMobile ? cardClass : cardDesktopClass;
   return (
     <div className="mx-auto max-w-5xl">
       <Headline eyebrow="Kind Words" title="Stories Our Guests Tell" />
@@ -270,7 +275,7 @@ export function TestimonialsSlide() {
       </div>
       <div className="grid grid-cols-1 gap-3 sm:gap-4 md:grid-cols-3">
         {TESTIMONIALS.map((t) => (
-          <figure key={t.name} className={`${cardClass} flex flex-col p-5 sm:p-6`}>
+          <figure key={t.name} className={`${card} flex flex-col p-5 sm:p-6`}>
             <Quote className="mb-4 h-4 w-4 text-amber-400/70" aria-hidden="true" />
             <blockquote className="flex-1 text-xs font-light leading-relaxed text-neutral-200 sm:text-sm">
               “{t.quote}”
@@ -290,7 +295,7 @@ export function TestimonialsSlide() {
   );
 }
 
-export function FaqSlide() {
+export function FaqSlide({ isMobile }: { isMobile?: boolean }) {
   return (
     <div className="mx-auto max-w-3xl">
       <Headline eyebrow="Questions, Answered" title="Before You Ask" />
@@ -298,7 +303,7 @@ export function FaqSlide() {
         {FAQS.map((faq) => (
           <details
             key={faq.question}
-            className="group border-b border-white/10 bg-neutral-950/40 backdrop-blur-sm"
+            className={`group border-b border-white/10 bg-neutral-950/40${isMobile ? "" : " backdrop-blur-sm"}`}
           >
             <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-4 py-3.5 text-left sm:gap-6 sm:px-5 sm:py-4">
               <span className="text-sm font-light tracking-wide text-white transition-colors duration-300 group-hover:text-amber-300/90">
@@ -344,16 +349,16 @@ export function CtaSlide() {
   );
 }
 
-export function TimelineSlideContent({ type }: { type: TimelineSlideType }) {
+export function TimelineSlideContent({ type, isMobile }: { type: TimelineSlideType; isMobile?: boolean }) {
   switch (type) {
     case "services":
-      return <ServicesSlide />;
+      return <ServicesSlide isMobile={isMobile} />;
     case "process":
       return <ProcessSlide />;
     case "testimonials":
-      return <TestimonialsSlide />;
+      return <TestimonialsSlide isMobile={isMobile} />;
     case "faq":
-      return <FaqSlide />;
+      return <FaqSlide isMobile={isMobile} />;
     case "cta":
       return <CtaSlide />;
   }

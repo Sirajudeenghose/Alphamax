@@ -29,57 +29,109 @@ export function HeroSection() {
     const indicator = indicatorRef.current;
     if (reduced || !container || !wrapper || !content || !indicator) return;
 
-    const tl = gsap.timeline({
-      scrollTrigger: {
+    const mm = gsap.matchMedia();
+
+    const bounceRef = { current: null as gsap.core.Tween | null };
+
+    mm.add("(min-width: 768px)", () => {
+      const tl = gsap.timeline({
+        scrollTrigger: {
+          trigger: container,
+          pin: true,
+          start: "top top",
+          end: "+=80%",
+          scrub: 1.5,
+        },
+      });
+
+      tl.to(wrapper, { scale: 1.15, ease: "power1.inOut" }, 0)
+        .to(content, { scale: 0.9, opacity: 0.2, ease: "power2.inOut" }, 0)
+        .to(indicator, { opacity: 0, ease: "power2.out" }, 0);
+
+      if (titleRef.current) {
+        gsap.fromTo(
+          titleRef.current,
+          { y: 80, opacity: 0 },
+          { y: 0, opacity: 1, duration: 1.5, ease: "power3.out", delay: 0.6 }
+        );
+      }
+
+      if (subtitleRef.current) {
+        gsap.fromTo(
+          subtitleRef.current,
+          { y: 40, opacity: 0 },
+          { y: 0, opacity: 1, duration: 1.2, ease: "power3.out", delay: 0.9 }
+        );
+      }
+
+      if (ctaRef.current) {
+        gsap.fromTo(
+          ctaRef.current,
+          { y: 30, opacity: 0 },
+          { y: 0, opacity: 1, duration: 1.2, ease: "power3.out", delay: 1.3 }
+        );
+      }
+
+      bounceRef.current = gsap.to(indicator, {
+        y: 10,
+        repeat: -1,
+        yoyo: true,
+        duration: 1.5,
+        ease: "power2.inOut",
+        delay: 2.2,
+      });
+
+      ScrollTrigger.create({
         trigger: container,
-        pin: true,
         start: "top top",
-        end: "+=80%",
-        scrub: 1.5,
-      },
+        end: "bottom top",
+        onLeave: () => bounceRef.current?.pause(),
+        onEnterBack: () => bounceRef.current?.resume(),
+      });
     });
 
-    tl.to(wrapper, { scale: 1.15, ease: "power1.inOut" }, 0)
-      .to(content, { scale: 0.9, opacity: 0.2, ease: "power2.inOut" }, 0)
-      .to(indicator, { opacity: 0, ease: "power2.out" }, 0);
+    mm.add("(max-width: 767px)", () => {
+      const tl = gsap.timeline({
+        scrollTrigger: {
+          trigger: container,
+          pin: true,
+          start: "top top",
+          end: "+=80%",
+          scrub: 1.5,
+        },
+      });
 
-    if (titleRef.current) {
-      gsap.fromTo(
-        titleRef.current,
-        { y: 80, opacity: 0 },
-        { y: 0, opacity: 1, duration: 1.5, ease: "power3.out", delay: 0.6 }
-      );
-    }
+      tl.to(content, { opacity: 0, ease: "power2.inOut" }, 0)
+        .to(indicator, { opacity: 0, ease: "power2.out" }, 0);
 
-    if (subtitleRef.current) {
-      gsap.fromTo(
-        subtitleRef.current,
-        { y: 40, opacity: 0 },
-        { y: 0, opacity: 1, duration: 1.2, ease: "power3.out", delay: 0.9 }
-      );
-    }
+      if (titleRef.current) {
+        gsap.fromTo(
+          titleRef.current,
+          { y: 40, opacity: 0 },
+          { y: 0, opacity: 1, duration: 1, ease: "power3.out", delay: 0.4 }
+        );
+      }
 
-    if (ctaRef.current) {
-      gsap.fromTo(
-        ctaRef.current,
-        { y: 30, opacity: 0 },
-        { y: 0, opacity: 1, duration: 1.2, ease: "power3.out", delay: 1.3 }
-      );
-    }
+      if (subtitleRef.current) {
+        gsap.fromTo(
+          subtitleRef.current,
+          { y: 20, opacity: 0 },
+          { y: 0, opacity: 1, duration: 0.8, ease: "power3.out", delay: 0.6 }
+        );
+      }
 
-    gsap.to(indicator, {
-      y: 10,
-      repeat: -1,
-      yoyo: true,
-      duration: 1.5,
-      ease: "power2.inOut",
-      delay: 2.2,
+      if (ctaRef.current) {
+        gsap.fromTo(
+          ctaRef.current,
+          { y: 20, opacity: 0 },
+          { y: 0, opacity: 1, duration: 0.8, ease: "power3.out", delay: 0.9 }
+        );
+      }
     });
 
     return () => {
-      ScrollTrigger.getAll().forEach((st) => {
-        if (st.vars.trigger === container) st.kill();
-      });
+      mm.revert();
+      bounceRef.current = null;
     };
   }, [reduced]);
 
