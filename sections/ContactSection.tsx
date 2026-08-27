@@ -51,6 +51,7 @@ export function ContactSection() {
       ref={sectionRef}
       id="contact"
       className="relative flex min-h-screen items-center justify-center bg-gradient-to-b from-neutral-950 to-black px-6 py-32"
+      style={{ contentVisibility: "auto", containIntrinsicSize: "auto 1000px" }}
     >
       <div className="mx-auto max-w-3xl text-center">
         <TextReveal

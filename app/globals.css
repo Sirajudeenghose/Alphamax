@@ -13,3 +13,21 @@ html {
   background-color: rgba(245, 158, 11, 0.3);
   color: #fff;
 }
+
+.scroll-progress-bar {
+  transform: scaleX(0);
+  transform-origin: left;
+}
+
+@supports (animation-timeline: scroll()) {
+  .scroll-progress-bar {
+    animation: fill-progress linear both;
+    animation-timeline: scroll(root);
+  }
+
+  @keyframes fill-progress {
+    to {
+      transform: scaleX(1);
+    }
+  }
+}

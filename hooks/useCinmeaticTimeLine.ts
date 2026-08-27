@@ -35,6 +35,12 @@ interface UseCinematicTimelineOptions {
    *  devices with slower decoders (mobile) to cut redundant seeks; the
    *  visual difference below ~0.08s is imperceptible during scroll. */
   seekThreshold?: number;
+  /**
+   * When provided, video seeking and opacity updates are skipped.
+   * The caller (WebCodecs canvas path) owns frame rendering.
+   * Slide animations still run.
+   */
+  onFrameRequest?: (virtualTime: number) => void;
 }
 
 const blobUrlCache = new Map<string, string>();
@@ -79,6 +85,7 @@ export function useCinematicTimeline({
   crossfadeWindow = 0.4,
   slideFadeMargin = 1,
   seekThreshold = 0.02,
+  onFrameRequest,
 }: UseCinematicTimelineOptions) {
   useEffect(() => {
     const wrapper = wrapperRef.current;
@@ -187,37 +194,43 @@ export function useCinematicTimeline({
           const virtualTime = self.progress * totalDuration;
 
           // --- video clips: scrub + crossfade at the handoff ---
-          clips.forEach((clip, i) => {
-            const v = videos[i];
-            if (!v) return;
-            const clipDuration = clip.end - clip.start;
-            const fadeInFrom = clip.start - crossfadeWindow;
-            const fadeOutTo = clip.end + crossfadeWindow;
+          if (onFrameRequest) {
+            // WebCodecs path: delegate frame rendering to the canvas callback.
+            // Video elements are hidden; only slide animations run here.
+            onFrameRequest(virtualTime);
+          } else {
+            clips.forEach((clip, i) => {
+              const v = videos[i];
+              if (!v) return;
+              const clipDuration = clip.end - clip.start;
+              const fadeInFrom = clip.start - crossfadeWindow;
+              const fadeOutTo = clip.end + crossfadeWindow;
 
-            if (virtualTime < fadeInFrom || virtualTime > fadeOutTo) {
-              gsap.set(v, { opacity: 0 });
-              return;
-            }
+              if (virtualTime < fadeInFrom || virtualTime > fadeOutTo) {
+                gsap.set(v, { opacity: 0 });
+                return;
+              }
 
-            let opacity = 1;
-            if (virtualTime < clip.start) {
-              opacity = (virtualTime - fadeInFrom) / crossfadeWindow;
-            } else if (virtualTime > clip.end) {
-              opacity = 1 - (virtualTime - clip.end) / crossfadeWindow;
-            }
-            gsap.set(v, { opacity: Math.min(1, Math.max(0, opacity)) });
+              let opacity = 1;
+              if (virtualTime < clip.start) {
+                opacity = (virtualTime - fadeInFrom) / crossfadeWindow;
+              } else if (virtualTime > clip.end) {
+                opacity = 1 - (virtualTime - clip.end) / crossfadeWindow;
+              }
+              gsap.set(v, { opacity: Math.min(1, Math.max(0, opacity)) });
 
-            const localTime = Math.min(
-              Math.max(virtualTime - clip.start, 0),
-              clipDuration
-            );
-            if (
-              Number.isFinite(v.duration) &&
-              Math.abs(v.currentTime - localTime) > seekThreshold
-            ) {
-              requestSeek(i, localTime);
-            }
-          });
+              const localTime = Math.min(
+                Math.max(virtualTime - clip.start, 0),
+                clipDuration
+              );
+              if (
+                Number.isFinite(v.duration) &&
+                Math.abs(v.currentTime - localTime) > seekThreshold
+              ) {
+                requestSeek(i, localTime);
+              }
+            });
+          }
 
           // --- text slides: fade + drift as each one's slot passes ---
           slides.forEach((slide, i) => {
@@ -267,5 +280,5 @@ export function useCinematicTimeline({
     };
     // slides/clips are expected to be stable module-level constants passed
     // in from the parent — if you make them dynamic, memoize them there.
-  }, [wrapperRef, videoRefs, clips, slides, slideElsRef, reduced, crossfadeWindow, slideFadeMargin, seekThreshold]);
+  }, [wrapperRef, videoRefs, clips, slides, slideElsRef, reduced, crossfadeWindow, slideFadeMargin, seekThreshold, onFrameRequest]);
 }

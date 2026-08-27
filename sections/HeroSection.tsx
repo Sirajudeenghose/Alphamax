@@ -37,9 +37,8 @@ export function HeroSection() {
       const tl = gsap.timeline({
         scrollTrigger: {
           trigger: container,
-          pin: true,
           start: "top top",
-          end: "+=80%",
+          end: "bottom top",
           scrub: 1.5,
         },
       });
@@ -94,9 +93,8 @@ export function HeroSection() {
       const tl = gsap.timeline({
         scrollTrigger: {
           trigger: container,
-          pin: true,
           start: "top top",
-          end: "+=80%",
+          end: "bottom top",
           scrub: 1.5,
         },
       });
@@ -136,12 +134,17 @@ export function HeroSection() {
   }, [reduced]);
 
   return (
-    <div ref={containerRef} className="relative">
+    <div
+      ref={containerRef}
+      className="relative h-[180vh]"
+      style={reduced ? { height: "100dvh" } : undefined}
+    >
       <VideoHero
         videoSrc={VIDEO_PATH}
         poster="/images/wedding-venue-hero-poster.jpg"
         overlayOpacity={0.55}
         wrapperRef={wrapperRef}
+        className={reduced ? undefined : "sticky top-0"}
       >
         <div
           ref={contentRef}

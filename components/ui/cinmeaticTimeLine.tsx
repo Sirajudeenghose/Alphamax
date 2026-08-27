@@ -8,6 +8,7 @@ import {
   type CinematicClip,
   type CinematicSlide,
 } from "@/hooks/useCinmeaticTimeLine";
+import { useWebCodecsTimeline } from "@/hooks/useWebCodecsTimeline";
 import {
   TimelineSlideContent,
   type TimelineSlideType,
@@ -79,6 +80,23 @@ export function CinematicTimeline() {
   // render — which keeps the effect below from rebinding needlessly.
   const clips = isMobile ? MOBILE_CLIPS : DESKTOP_CLIPS;
 
+  // WebCodecs path: fetches MP4s, decodes via VideoDecoder, renders to canvas.
+  // Falls back to <video> elements when WebCodecs is unavailable or fails.
+  const {
+    canvasRef,
+    ready: webcodecsReady,
+    requestFrame,
+    failed: webcodecsFailed,
+  } = useWebCodecsTimeline({
+    clips,
+    reduced,
+    isMobile,
+  });
+
+  // WebCodecs is active only when ready AND not failed.
+  // failed=true means runtime failure after init — fall back to video.
+  const webcodecsActive = webcodecsReady && !webcodecsFailed;
+
   useCinematicTimeline({
     wrapperRef,
     videoRefs: [video1Ref, video2Ref],
@@ -90,6 +108,9 @@ export function CinematicTimeline() {
     // handles fine — widening the dedup threshold cuts redundant seeks
     // without a perceptible loss of scrub precision.
     seekThreshold: isMobile ? 0.08 : 0.02,
+    // When WebCodecs canvas is ready, delegate frame rendering to it.
+    // Video elements are hidden; only slide animations run in the hook.
+    onFrameRequest: webcodecsActive ? requestFrame : undefined,
   });
 
   if (reduced) {
@@ -119,10 +140,10 @@ export function CinematicTimeline() {
       className="relative w-full"
       style={{ height: `${TOTAL_DURATION * VH_PER_SECOND}vh` }}
     >
-      {/* Pinned stage — GSAP pins this to the viewport for the whole
-          wrapper height above, so the video never resizes/jumps between
-          sections; only opacity + currentTime change underneath it. */}
+      {/* Pinned stage — CSS sticky pins this to the viewport for the whole
+          wrapper height above; only video/canvas + slide transforms change. */}
       <div className="sticky top-0 h-screen w-full overflow-hidden bg-neutral-950 supports-[height:100dvh]:h-dvh">
+        {/* Video elements — visible during fallback init, hidden once WebCodecs canvas takes over */}
         <video
           ref={video1Ref}
           className="absolute inset-0 h-full w-full object-cover will-change-[opacity]"
@@ -133,7 +154,7 @@ export function CinematicTimeline() {
           disablePictureInPicture
           tabIndex={-1}
           aria-hidden="true"
-          style={{ opacity: 1 }}
+          style={{ opacity: webcodecsActive ? 0 : 1 }}
         />
         <video
           ref={video2Ref}
@@ -147,7 +168,16 @@ export function CinematicTimeline() {
           aria-hidden="true"
           style={{ opacity: 0 }}
         />
-        <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-black/50" />
+
+        {/* WebCodecs canvas — covers the full stage; gradient sits above it */}
+        <canvas
+          ref={canvasRef}
+          className="absolute inset-0 h-full w-full"
+          style={{ opacity: webcodecsActive ? 1 : 0 }}
+          aria-hidden="true"
+        />
+
+        <div className="pointer-events-none absolute inset-0 z-[1] bg-gradient-to-t from-black/70 via-black/10 to-black/50" />
 
         {SLIDES.map((slide, i) => (
           <div

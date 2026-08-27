@@ -10,6 +10,7 @@ interface VideoHeroProps {
   poster?: string;
   overlayOpacity?: number;
   wrapperRef?: RefObject<HTMLDivElement | null>;
+  className?: string;
 }
 
 export function VideoHero({
@@ -18,6 +19,7 @@ export function VideoHero({
   poster,
   overlayOpacity = 0.55,
   wrapperRef,
+  className,
 }: VideoHeroProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
@@ -47,7 +49,7 @@ export function VideoHero({
   }, [reduced, overlayOpacity]);
 
   return (
-    <section className="relative h-dvh w-full overflow-hidden">
+    <section className={`relative h-dvh w-full overflow-hidden${className ? ` ${className}` : ""}`}>
       <div ref={wrapperRef} className="absolute inset-0 will-change-transform">
         <video
           ref={videoRef}
