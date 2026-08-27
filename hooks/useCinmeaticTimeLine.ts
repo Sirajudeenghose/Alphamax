@@ -189,7 +189,7 @@ export function useCinematicTimeline({
         trigger: wrapper,
         start: "top top",
         end: "bottom bottom",
-        scrub: 0.5,
+        scrub: true,
         onUpdate: (self) => {
           const virtualTime = self.progress * totalDuration;
 

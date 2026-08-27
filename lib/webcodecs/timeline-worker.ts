@@ -63,6 +63,9 @@ class ClipDecoder {
   private lastOutputIndex = -1;
   private queueSize = 0;
   private readonly MAX_QUEUE = 12;
+  /** Called when a frame finishes decoding. Used to trigger redraws when
+   *  a decode completes after the last drawFrame (stale-frame race). */
+  onDecoded: ((frameIndex: number) => void) | null = null;
 
   constructor(cacheSize: number) {
     this.cache = new FrameCache(cacheSize);
@@ -80,6 +83,7 @@ class ClipDecoder {
       if (idx >= 0) {
         this.cache.set(idx, frame);
         this.lastOutputIndex = idx;
+        this.onDecoded?.(idx);
       } else {
         frame.close();
       }
@@ -402,6 +406,18 @@ function requestRender(virtualTime: number): void {
   }
 }
 
+/**
+ * After a decode completes, check whether the freshly-decoded frame is the
+ * one drawFrame was waiting for. If no render is already queued, schedule
+ * one at the last-known playhead so the canvas updates immediately instead
+ * of staying stale until the next scroll event.
+ */
+function scheduleRedraw(): void {
+  if (!rendering && pendingTime === null) {
+    requestRender(lastVirtualTime);
+  }
+}
+
 // ─── Init ────────────────────────────────────────────────────────────────────
 
 async function handleInit(msg: InitMessage): Promise<void> {
@@ -437,6 +453,13 @@ async function handleInit(msg: InitMessage): Promise<void> {
       const decoder = new ClipDecoder(cacheSize);
       await decoder.init(buf);
       decoders.push(decoder);
+    }
+
+    // When a decode completes after the last drawFrame (stale-frame race),
+    // schedule an immediate redraw so the canvas shows the decoded frame
+    // instead of remaining stuck on the placeholder.
+    for (const decoder of decoders) {
+      decoder.onDecoded = () => scheduleRedraw();
     }
 
     // Pre-decode first frames of clip 0 to ensure immediate first paint
