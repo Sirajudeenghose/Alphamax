@@ -326,14 +326,26 @@ export function parseMp4(arrayBuffer: ArrayBuffer): ParsedMp4 {
     chunkOffsets = parseCo64(view, co64.dataOffset);
   }
 
-  // Get timescale from mdia > mdhd
+  // Get timescale from mdia > mdhd. The timescale offset depends on the
+  // mdhd version field (the first payload byte):
+  //   version 0: creation(4) + modification(4) + timescale(4) → +12
+  //   version 1: creation(8) + modification(8) + timescale(4) → +20
+  // Reading a flat +4 (as an earlier version did) grabbed the version/flags +
+  // creation time and came back 0, which made frameRate/timestamps wrong.
   const mdhd = findBox(
     view,
     mdia.dataOffset,
     mdia.size - mdia.headerSize,
     "mdhd"
   );
-  const timescale = mdhd ? view.getUint32(mdhd.dataOffset + 4) : 24;
+  let timescale = 24;
+  if (mdhd) {
+    const mdhdVersion = view.getUint8(mdhd.dataOffset);
+    timescale =
+      mdhdVersion === 1
+        ? view.getUint32(mdhd.dataOffset + 20)
+        : view.getUint32(mdhd.dataOffset + 12);
+  }
 
   // Build frame index
   const sampleCount = sampleSizes.length;
