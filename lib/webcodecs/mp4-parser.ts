@@ -258,11 +258,19 @@ export function parseMp4(arrayBuffer: ArrayBuffer): ParsedMp4 {
   const width = view.getUint16(avc1DataStart + 24);
   const height = view.getUint16(avc1DataStart + 26);
 
-  // Find avcC inside avc1
+  // Child boxes (avcC, btrt, pasp, ...) do NOT start at avc1DataStart.
+  // Between the width/height (read at +24/+26, confirmed against the scrub
+  // files) and the first child box lie the remaining fixed VisualSampleEntry
+  // fields: horizresolution(4) + vertresolution(4) + reserved(4) +
+  // frame_count(2) + compressorname(32) + depth(2) + pre_defined(2) = 50
+  // bytes. So child boxes begin at avc1DataStart + 78 (= 28 + 50). Scanning
+  // from avc1DataStart instead hits the fixed fields as garbage box headers
+  // and fails to find avcC ("No avcC box found").
+  const sampleEntryChildStart = avc1DataStart + 78;
   const avcC = findBox(
     view,
-    avc1DataStart,
-    entrySize - 8,
+    sampleEntryChildStart,
+    entrySize - 8 - 78,
     "avcC"
   );
   if (!avcC) throw new Error("No avcC box found");

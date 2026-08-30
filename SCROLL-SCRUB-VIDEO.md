@@ -121,9 +121,9 @@ This is deliberate. The structure is a scroll-range container with a sticky stag
 
 - The wrapper is 20s × 22vh-per-second = **440vh of scroll distance** — that's the "runway" the user scrolls through.
 - The inner stage is `position: sticky; top: 0` — it follows the viewport for the wrapper's entire height, which *is* the pin. No GSAP pin involved.
-- The hook's ScrollTrigger (`start: "top top"`, `end: "bottom bottom"`, `scrub: 0.5`) just measures that range; it doesn't pin anything.
+- The hook's ScrollTrigger (`start: "top top"`, `end: "bottom bottom"`, `scrub: true`) just measures that range; it doesn't pin anything.
 
-Why not `pin: true`? The page already has two pinned regions (this timeline + the hero's `pin: true`). GSAP pinning inserts spacer elements and transforms the flow; `sticky` keeps the DOM flat, avoids pin hand-off jank at the boundary with the hero, and lets `normalizeScroll` on touch devices work with native-compositor-friendly layout. **Do not add `pin: true` to the hook** — it breaks the design.
+Why not `pin: true`? The page has two sticky regions (this timeline + the hero's CSS-sticky stage). GSAP pinning inserts spacer elements and transforms the flow; `sticky` keeps the DOM flat, avoids pin hand-off jank at the boundary with the hero, and lets `normalizeScroll` on touch devices work with native-compositor-friendly layout. **Do not add `pin: true` to the hook** — it breaks the design.
 
 ## 7. Text slides on the same clock
 
@@ -170,7 +170,7 @@ iOS/Safari refuses programmatic `currentTime` seeks on a `<video>` that has neve
 
 ### `bind` — the trigger goes live
 
-One `ScrollTrigger.create` with `scrub: 0.5`. The `onUpdate` never touches `currentTime` directly anymore — it records the newest wanted time:
+One `ScrollTrigger.create` with `scrub: true`. The `onUpdate` never touches `currentTime` directly anymore — it records the newest wanted time:
 
 ```ts
 const requestSeek = (i: number, time: number) => {
@@ -194,7 +194,7 @@ The hard rule learned from a regression (see `MOBILE-SCRUB-PERFORMANCE.md` §"Re
 - **`ScrollTrigger.refresh()`** on mount and on resize — needed because the wrapper's scroll height is in `vh` and the pin geometry is derived.
 - **Reduced motion** (`useReducedMotion()`) — the hook short-circuits entirely: videos pause on frame one, slides render as plain stacked sections in normal document flow, no pinning, no scroll-jacking. Slide `id`s stay valid anchors.
 - **Module-level constants** — `CLIP_TIMING`, `SLIDES`, `DESKTOP_CLIPS`, `MOBILE_CLIPS` are stable references *and* the hook lists `clips`/`slides` in its effect deps. Re-creating them inline on render rebinds the whole trigger every render.
-- **Hero section** (`sections/HeroSection.tsx`) is a separate autoplay video with its **own** `pin: true` + `scrub: 1.5` scale-out ScrollTrigger. Two pinned regions on the page — don't mistake the hero trigger for part of the timeline machinery.
+- **Hero section** (`sections/HeroSection.tsx`) is a separate autoplay video with its **own** CSS-sticky stage (`h-[180vh]` + `sticky top-0`) + `scrub: 1.5` scale-out ScrollTrigger (no GSAP `pin: true`). The page has two sticky regions — don't mistake the hero trigger for part of the timeline machinery.
 
 ## 10. Verification checklist (does the scrub feel right?)
 

@@ -11,8 +11,20 @@
  *   destroy { type:'destroy' }
  *
  * Message protocol (outbound):
- *   ready  { type:'ready' }
+ *   ready  { type:'ready', index:number }  — a clip is drawable (clip 0 fires
+ *                                            first so the canvas can take over
+ *                                            early; clip 1 fires in background)
  *   error  { type:'error', message:string }
+ *
+ * Loading model — progressive readiness, NOT "both ready before paint":
+ *   Both MP4s are fetched in parallel (network is already parallel) but the
+ *   worker does NOT wait for clip 1 before making clip 0 drawable. Clip 0 →
+ *   parse → configure → first frame decoded is what unblocks the canvas
+ *   takeover on the main thread. Clip 1 is prepared in the background and
+ *   becomes drawable when it's ready; drawFrame degrades to clip-0-only (and
+ *   crossfade is skipped) until both are configured. This honors the rule
+ *   "the page never waits for the video; the video never waits for the user"
+ *   — a slow clip 1 never delays the first cinematic frame.
  */
 
 import { parseMp4, buildDecoderConfig, type ParsedMp4 } from "./mp4-parser";
@@ -63,9 +75,13 @@ class ClipDecoder {
   private lastOutputIndex = -1;
   private queueSize = 0;
   private readonly MAX_QUEUE = 12;
+  private readyFired = false;
   /** Called when a frame finishes decoding. Used to trigger redraws when
    *  a decode completes after the last drawFrame (stale-frame race). */
   onDecoded: ((frameIndex: number) => void) | null = null;
+  /** Called once, when the first frame has been decoded and cached — i.e.
+   *  the clip is "drawable". Drives progressive readiness on the main thread. */
+  onFirstFrame: (() => void) | null = null;
 
   constructor(cacheSize: number) {
     this.cache = new FrameCache(cacheSize);
@@ -84,6 +100,10 @@ class ClipDecoder {
         this.cache.set(idx, frame);
         this.lastOutputIndex = idx;
         this.onDecoded?.(idx);
+        if (!this.readyFired) {
+          this.readyFired = true;
+          this.onFirstFrame?.();
+        }
       } else {
         frame.close();
       }
@@ -207,6 +227,9 @@ class ClipDecoder {
     this.cache.clear();
     this.parsed = null;
     this.decoderConfig = null;
+    this.onDecoded = null;
+    this.onFirstFrame = null;
+    this.readyFired = false;
   }
 }
 
@@ -304,24 +327,31 @@ let lastDrawnIdx = [-1, -1];
 let lastVirtualTime = 0;
 
 function drawFrame(virtualTime: number): void {
-  if (!canvas || !ctx || decoders.length < 2) return;
+  if (!canvas || !ctx) return;
 
   const clip0 = decoders[0];
-  const clip1 = decoders[1];
-  if (!clip0?.parsed || !clip1?.parsed) return;
+  if (!clip0?.parsed) return;
 
-  // Compute scroll direction for direction-aware prefetch
+  // Direction-aware prefetch
   const direction = virtualTime > lastVirtualTime ? 1 : virtualTime < lastVirtualTime ? -1 : 0;
   lastVirtualTime = virtualTime;
 
-  const cf = computeCrossfade(
-    virtualTime,
-    clips[0].start,
-    clips[0].end,
-    clips[1].start,
-    clips[1].end,
-    crossfadeWindow
-  );
+  // Clip 1 may not be configured yet on the first paints (progressive
+  // readiness). When it is, compute the shared crossfade; otherwise paint
+  // clip 0 at full opacity (clip 0 covers the opening of the timeline).
+  const clip1 = decoders[1];
+  const bothReady = !!clip1?.parsed;
+
+  const cf = bothReady
+    ? computeCrossfade(
+        virtualTime,
+        clips[0].start,
+        clips[0].end,
+        clips[1].start,
+        clips[1].end,
+        crossfadeWindow
+      )
+    : { opacity0: 1, opacity1: 0 };
 
   ctx.clearRect(0, 0, canvasW, canvasH);
 
@@ -353,8 +383,8 @@ function drawFrame(virtualTime: number): void {
     }
   }
 
-  // Clip 1
-  if (cf.opacity1 > 0) {
+  // Clip 1 (only once it's configured/drawable)
+  if (clip1 && clip1.parsed && cf.opacity1 > 0) {
     const clip1Duration = clips[1].end - clips[1].start;
     const localTime1 = Math.max(
       0,
@@ -383,7 +413,7 @@ function drawFrame(virtualTime: number): void {
 
   // Evict distant frames
   clip0.cache.evict(lastDrawnIdx[0]);
-  clip1.cache.evict(lastDrawnIdx[1]);
+  if (bothReady && clip1) clip1.cache.evict(lastDrawnIdx[1]);
 }
 
 function renderLoop(): void {
@@ -438,36 +468,42 @@ async function handleInit(msg: InitMessage): Promise<void> {
   const cacheSize = computeAdaptiveCacheSize(msg.isMobile);
 
   try {
-    // Fetch and parse all clips in parallel
-    const buffers = await Promise.all(
-      clips.map(async (clip) => {
-        const res = await fetch(clip.src);
-        if (!res.ok) throw new Error(`Failed to fetch ${clip.src}`);
-        return res.arrayBuffer();
-      })
-    );
+    // Kick off both fetches in parallel up front. Fetching is parallel and
+    // cheap to start, but we do NOT await clip 1 before making clip 0
+    // drawable — a slow clip 1 must never delay the first cinematic frame.
+    const fetches = clips.map(async (clip) => {
+      const res = await fetch(clip.src, { cache: "force-cache" });
+      if (!res.ok) throw new Error(`Failed to fetch ${clip.src}`);
+      return res.arrayBuffer();
+    });
 
-    // Create decoders
-    decoders = [];
-    for (const buf of buffers) {
-      const decoder = new ClipDecoder(cacheSize);
-      await decoder.init(buf);
-      decoders.push(decoder);
-    }
+    decoders = [new ClipDecoder(cacheSize), new ClipDecoder(cacheSize)];
 
-    // When a decode completes after the last drawFrame (stale-frame race),
-    // schedule an immediate redraw so the canvas shows the decoded frame
-    // instead of remaining stuck on the placeholder.
-    for (const decoder of decoders) {
-      decoder.onDecoded = () => scheduleRedraw();
-    }
+    // ── Clip 0: become drawable as early as possible ──
+    // Parse + configure + decode frame 0. The moment frame 0 lands, post
+    // `ready` for clip 0 so the main thread flips webcodecsActive and the
+    // canvas takes over with a real first frame already painted.
+    const decoder0 = decoders[0];
+    await decoder0.init(await fetches[0]);
+    decoder0.onDecoded = () => scheduleRedraw();
+    decoder0.onFirstFrame = () => {
+      self.postMessage({ type: "ready", index: 0 });
+    };
+    // Pre-decode frame 0 (direction = down) so the first paint is instant.
+    decoder0.decodeFrame(0, 3, 1);
 
-    // Pre-decode first frames of clip 0 to ensure immediate first paint
-    if (decoders[0]) {
-      decoders[0].decodeFrame(0, 6, 1);
-    }
-
-    self.postMessage({ type: "ready" });
+    // ── Clip 1: prepare in the background ──
+    // Not awaited by anything that blocks the first paint. Once configured
+    // and its first frame is decoded, clip 1 becomes drawable and the shared
+    // crossfade kicks in. Failure here still drops to the <video> floor
+    // (caught below), since clip 1 covers the back half of the timeline.
+    const decoder1 = decoders[1];
+    await decoder1.init(await fetches[1]);
+    decoder1.onDecoded = () => scheduleRedraw();
+    decoder1.onFirstFrame = () => {
+      self.postMessage({ type: "ready", index: 1 });
+    };
+    decoder1.decodeFrame(0, 3, 1);
   } catch (e) {
     self.postMessage({
       type: "error",
@@ -477,7 +513,7 @@ async function handleInit(msg: InitMessage): Promise<void> {
 }
 
 function handleSeek(virtualTime: number): void {
-  if (decoders.length < 2) return;
+  if (decoders.length === 0) return;
   // Direction tracking is used inside drawFrame for prefetch biasing
   requestRender(virtualTime);
 }

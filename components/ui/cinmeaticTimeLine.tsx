@@ -143,11 +143,14 @@ export function CinematicTimeline() {
       {/* Pinned stage — CSS sticky pins this to the viewport for the whole
           wrapper height above; only video/canvas + slide transforms change. */}
       <div className="sticky top-0 h-screen w-full overflow-hidden bg-neutral-950 supports-[height:100dvh]:h-dvh">
-        {/* Video elements — visible during fallback init, hidden once WebCodecs canvas takes over */}
+        {/* Video elements — visible during fallback init, hidden once WebCodecs canvas takes over.
+            `poster` gives an instant first-/frame visual even before the first byte of the
+            (large, all-intra) clip decodes, so the stage is never blank while loading. */}
         <video
           ref={video1Ref}
           className="absolute inset-0 h-full w-full object-cover will-change-[opacity]"
           src={clips[0].src}
+          poster={isMobile ? "/images/timeline-clip1-poster-mobile.jpg" : "/images/timeline-clip1-poster.jpg"}
           muted
           playsInline
           preload="auto"

@@ -27,6 +27,9 @@ interface UseWebCodecsTimelineOptions {
 
 interface UseWebCodecsTimelineReturn {
   canvasRef: React.RefObject<HTMLCanvasElement | null>;
+  /** Primary clip (index 0) is drawable — its first frame is decoded and the
+   *  canvas can take over. Clip 1 still loads in the background and becomes
+   *  drawable without gating this. */
   ready: boolean;
   requestFrame: (virtualTime: number) => void;
   failed: boolean;
@@ -86,7 +89,14 @@ export function useWebCodecsTimeline({
         worker.onmessage = (e: MessageEvent) => {
           const msg = e.data;
           if (msg.type === "ready") {
-            setReady(true);
+            // Progressive readiness: the worker posts {ready, index} as each
+            // clip becomes drawable. `ready` flips true when the PRIMARY clip
+            // (index 0) is ready — its first frame is decoded and painted, so
+            // the canvas can take over immediately. Clip 1 is prepared in the
+            // background and becomes drawable without gating the takeover.
+            if (msg.index === 0) {
+              setReady(true);
+            }
           } else if (msg.type === "error") {
             console.error("WebCodecs Worker error:", msg.message);
             setFailed(true);
